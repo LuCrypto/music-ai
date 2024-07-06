@@ -25,6 +25,24 @@ const ButtonsSections = () => {
     }
   }, [sequence, isPlaying])
 
+  // Ajoutez cette fonction helper
+  function getButtonColorClass(color: string) {
+    switch (color) {
+      case 'green':
+        return 'bg-green-500 hover:bg-green-600'
+      case 'red':
+        return 'bg-red-500 hover:bg-red-600'
+      case 'violet':
+        return 'bg-violet-500 hover:bg-violet-600'
+      case 'orange':
+        return 'bg-orange-500 hover:bg-orange-600'
+      case 'blue':
+        return 'bg-blue-500 hover:bg-blue-600'
+      default:
+        return 'bg-gray-500 hover:bg-gray-600'
+    }
+  }
+
   const playSequence = async () => {
     setUserSequence([])
     for (const freq of sequence) {
@@ -107,9 +125,9 @@ const ButtonsSections = () => {
             key={index}
             className={`btn ${
               activeButton === button.frequency ? 'ring-4 ring-white' : ''
-            } bg-${button.color}-500 hover:bg-${
+            } ${getButtonColorClass(
               button.color
-            }-600 border-black border-2 hover:border-black rounded-full w-16 h-16`}
+            )} border-black border-2 hover:border-black rounded-full w-16 h-16`}
             onClick={() => handleButtonClick(button.frequency)}
             disabled={isPlaying}
           ></button>
