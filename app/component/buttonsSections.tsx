@@ -1,7 +1,12 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { playSong } from '../utils/playSong'
+import React, { useState, useEffect, useRef } from 'react'
+
+import { playSong } from '../utils/song'
+import { analyzeAudio } from '../utils/audioAnalysis'
+
+import Confetti from 'react-confetti'
+import { v4 as uuidv4 } from 'uuid'
 
 const ButtonsSections = () => {
   const [sequence, setSequence] = useState<number[]>([])
@@ -10,6 +15,12 @@ const ButtonsSections = () => {
   const [visualMode, setVisualMode] = useState(true)
   const [activeButton, setActiveButton] = useState<number | null>(null)
   const [score, setScore] = useState(0)
+  const [confetti, setConfetti] = useState<
+    Array<{ id: string; x: number; y: number }>
+  >([])
+
+  const [importedSequence, setImportedSequence] = useState<number[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const buttons = [
     { color: 'green', frequency: 340 },
@@ -43,14 +54,38 @@ const ButtonsSections = () => {
     }
   }
 
+  const handleFileImport = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      const audioBuffer = await file.arrayBuffer()
+      const frequencies = await analyzeAudio(audioBuffer)
+      console.log('frequencies : ', frequencies)
+      const mappedSequence = frequencies.map(
+        (freq: number) =>
+          buttons.reduce((closest: any, button: any) =>
+            Math.abs(button.frequency - freq) <
+            Math.abs(closest.frequency - freq)
+              ? button
+              : closest
+          ).frequency
+      )
+      setImportedSequence(mappedSequence)
+      setSequence(mappedSequence)
+    }
+  }
+
   const playSequence = async () => {
     setUserSequence([])
-    for (const freq of sequence) {
+    const sequenceToPlay =
+      importedSequence.length > 0 ? importedSequence : sequence
+    for (const freq of sequenceToPlay) {
       if (visualMode) {
         setActiveButton(freq)
       }
       playSong(freq)
-      await new Promise((resolve) => setTimeout(resolve, 750))
+      await new Promise((resolve) => setTimeout(resolve, 500))
       if (visualMode) {
         await new Promise((resolve) => setTimeout(resolve, 500))
         setActiveButton(null)
@@ -72,9 +107,26 @@ const ButtonsSections = () => {
     setIsPlaying(true)
   }
 
-  const handleButtonClick = (freq: number) => {
-    if (!isPlaying) {
-      playSong(freq)
+  const handleButtonClick = (
+    freq: number,
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    playSong(freq)
+    setActiveButton(freq)
+    setTimeout(() => setActiveButton(null), 500)
+
+    const buttonRect = event.currentTarget.getBoundingClientRect()
+    const newConfetti = {
+      id: uuidv4(),
+      x: buttonRect.left + buttonRect.width / 2,
+      y: buttonRect.top,
+    }
+    setConfetti((prev) => [...prev, newConfetti])
+    setTimeout(() => {
+      setConfetti((prev) => prev.filter((c) => c.id !== newConfetti.id))
+    }, 2000)
+
+    if (sequence.length > 0) {
       const newUserSequence = [...userSequence, freq]
       setUserSequence(newUserSequence)
 
@@ -93,13 +145,12 @@ const ButtonsSections = () => {
         setSequence([])
         setUserSequence([])
         setScore(0)
-        return
       }
     }
   }
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center gap-6">
+    <div className="w-full h-full flex flex-col items-center justify-center gap-6 overflow-hidden">
       <div className="text-2xl font-bold mb-4">Score: {score}</div>
       <div className="flex gap-4">
         <button
@@ -109,6 +160,19 @@ const ButtonsSections = () => {
         >
           Jouer
         </button>
+        <button
+          className="btn bg-transparent border-black border-2 hover:border-black rounded-full w-24 h-24 mt-6"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          Importer
+        </button>
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="hidden"
+          accept="audio/*"
+          onChange={handleFileImport}
+        />
         <button
           className={`btn ${
             visualMode ? 'bg-blue-500' : 'bg-gray-500'
@@ -120,19 +184,36 @@ const ButtonsSections = () => {
         </button>
       </div>
       <div className="w-full h-full flex items-center justify-center gap-6">
-        {buttons.map((button, index) => (
-          <button
-            key={index}
-            className={`btn ${
-              activeButton === button.frequency ? 'ring-4 ring-white' : ''
-            } ${getButtonColorClass(
-              button.color
-            )} border-black border-2 hover:border-black rounded-full w-16 h-16`}
-            onClick={() => handleButtonClick(button.frequency)}
-            disabled={isPlaying}
-          ></button>
+        {buttons.map((button) => (
+          <div key={button.frequency} className="relative">
+            <button
+              className={`btn ${
+                activeButton === button.frequency ? 'ring-4 ring-white' : ''
+              } ${getButtonColorClass(
+                button.color
+              )} border-black border-2 hover:border-black rounded-full w-16 h-16`}
+              onClick={(event) => handleButtonClick(button.frequency, event)}
+              disabled={isPlaying}
+            />
+          </div>
         ))}
       </div>
+      {confetti.map(({ id, x, y }) => (
+        <div key={id} className="fixed inset-0 pointer-events-none">
+          <Confetti
+            width={window.innerWidth}
+            height={window.innerHeight}
+            confettiSource={{
+              x: x,
+              y: y,
+              w: 0,
+              h: 0,
+            }}
+            recycle={false}
+            numberOfPieces={50}
+          />
+        </div>
+      ))}
     </div>
   )
 }
